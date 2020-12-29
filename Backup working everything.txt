@@ -1,0 +1,66 @@
+TCP();
+timer2();
+timer();
+RFID();
+
+CASE state OF
+	0:
+	IO.xQA1_RIGHT := TRUE;
+	IO.xMB20 := FALSE;
+	state := 1;
+	RFID.ClearError();
+	TCP.Connect(sIP:='172.20.66.78', uiPort:=1234);
+	
+	1:
+	IF TCP.xConnected AND RFID.xReady = TRUE THEN
+		RFID.Connect(usiNodeId := 32, usiNetworkId := 0, usiChannel := 1);
+		state := 2;
+	END_IF
+	
+	2:
+	IF RFID.xReady AND TCP.xReady AND IO.xBG21 = TRUE THEN
+		RFID.ReadTag(uiStartAddress := 0, uiDataLength := SIZEOF(rfidData), ADR(rfidData));
+		state := 3;
+		
+	END_IF
+	
+	3:
+	IF RFID.xReady THEN
+		state := 4;
+		debug := CONCAT(BOOL_TO_STRING(TCP.xConnected),INT_TO_STRING(state));
+		ID := rfidData.uiCarrierID;
+		
+		swapped := dc_ecp.SwapWORD(rfidData.uiCarrierID);
+		swappedString := DWORD_TO_STRING(swapped);
+		msg1 := CONCAT('<?xml version="1.0" encoding="UTF-8" ?><msg><id>', swappedString);
+ 		msg := CONCAT(msg1, '</id></msg>');
+		TCP.Send(pToSend:=ADR(msg), uiSizeToSend:=LEN(msg));
+	END_IF
+		
+	4:
+	IF TCP.xReady THEN
+		TCP.Receive(pToReceive:=ADR(DATAIN), uiSizeToReceive:=SIZEOF(DATAIN));
+		input := DWORD_TO_INT(DATAIN);
+		timer(IN:=TRUE, PT:= INT_TO_TIME(input));
+		state:=5;
+	END_IF
+
+	5:
+	IF timer.Q = TRUE THEN
+		IO.xMB20 := TRUE;
+		timer2(IN:=TRUE, PT:= INT_TO_TIME(500));
+		state := 6;
+		debug := CONCAT(BOOL_TO_STRING(TCP.xConnected),INT_TO_STRING(state));
+	END_IF
+	
+	6:
+	IF timer2.Q = TRUE THEN
+		IO.xMB20 := FALSE;
+		state := 2;
+		timer.IN:=FALSE;
+		timer2.IN:=FALSE;
+	END_IF
+	
+	
+END_CASE
+
