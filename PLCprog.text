@@ -50,7 +50,6 @@ CASE state OF
 		IO.xMB20 := TRUE;
 		timer2(IN:=TRUE, PT:= INT_TO_TIME(500));
 		state := 6;
-		debug := CONCAT(BOOL_TO_STRING(TCP.xConnected),INT_TO_STRING(state));
 	END_IF
 	
 	6:
